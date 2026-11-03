@@ -330,6 +330,7 @@ def player_html(entries: list[dict]) -> tuple[str, int]:
 # ---------------------------------------------------------------- UI
 st.title("🏎️ F1 Lap Speed Map")
 st.caption("Data from the [OpenF1 API](https://openf1.org). Pick a session, drivers and lap in the sidebar.")
+st.caption("View the repo [here](https://github.com/russvanfossen/f1_data_viz).")
 loader = Loader(st.empty())  # loading card sits at the top of the main area
 if "toast" in st.session_state:
     st.toast(st.session_state.pop("toast"), icon="✅")
