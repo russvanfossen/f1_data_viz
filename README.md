@@ -7,6 +7,8 @@ Every visit starts fresh with nothing selected. Pick a date range, a session, up
 App was based my F1 viz notebook [GitHub Link](https://github.com/russvanfossen/Data_Science_Portfolio/blob/main/f1data.ipynb). /
 The data exploration was done mostly by hand with Claude consulted for ideas on the more complex data manipulations (mostly the reshaping of the numpy arrays). Claude also helped develop the Streamlit app and animations. 
 
+View my portfolio [here](https://github.com/russvanfossen/Data_Science_Portfolio)
+
 ## Features
 
 - **Session search by date:** finds every F1 session (practice, qualifying, sprint, race) in a date range, filterable by session type.
