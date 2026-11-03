@@ -366,8 +366,9 @@ with st.sidebar:
     st.header("3. Drivers")
     have_laps = set(laps["driver_number"])
     dlabels = {n: f"#{n} {r.full_name} ({r.team_name})" for n, r in info.iterrows() if n in have_laps}
-    chosen = st.multiselect(f"Drivers (up to {MAX_DRIVERS})", list(dlabels), default=list(dlabels)[:1],
-                            format_func=dlabels.get, max_selections=MAX_DRIVERS)
+    chosen = st.multiselect(f"Drivers (up to {MAX_DRIVERS})", list(dlabels), default=[],
+                            format_func=dlabels.get, max_selections=MAX_DRIVERS,
+                           placeholder="Choose drivers to compare")
 
     not_loaded = [n for n in dlabels if ("driver", session_key, n) not in seen()]
     if not_loaded:
