@@ -8,10 +8,10 @@
   body { margin:0; background:var(--bg); color:var(--text);
          font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   .controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; }
-  button, select { background:#262633; color:var(--text); border:1px solid var(--line);
+  button { background:#262633; color:var(--text); border:1px solid var(--line);
          border-radius:6px; padding:7px 14px; font-size:15px; cursor:pointer; font-family:inherit; }
-  button:hover, select:hover { border-color:var(--text); }
-  button:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+  button:hover { border-color:var(--text); }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
   button[aria-pressed="true"] { background:var(--text); color:#111; border-color:var(--text); font-weight:600; }
   #play { min-width:92px; font-weight:600; }
   .group { display:flex; gap:4px; align-items:center; }
@@ -42,7 +42,6 @@
   <span id="clock"></span>
   <div class="group" id="views"><span>View</span></div>
   <div class="group" id="speeds"><span>Speed</span></div>
-  <select id="scale" aria-label="Color scale"></select>
 </div>
 <div class="legend"><span>Speed</span><span id="smin"></span><div id="bar"></div><span id="smax"></span></div>
 <div class="grid" id="grid"></div>
@@ -51,26 +50,15 @@
 <script>
 const D = __DATA__;
 
-// Color scales trimmed so the slow end still shows up on a dark background
-const SCALES = {
-  "Plasma":  ["#7201a8","#a11b9b","#c6417d","#e3685f","#f79143","#fdc229","#f0f921"],
-  "Inferno": ["#4a0c6b","#7f1e6c","#b3325a","#e05536","#f8890c","#f9c72f","#fcffa4"],
-  "Viridis": ["#3e4989","#2f6c8e","#228b8d","#25ab82","#58c765","#a8db34","#fde725"],
-  "Cividis": ["#3b496c","#5b606e","#777777","#979177","#b9ab6d","#dcc859","#fee838"],
-  "Red → Yellow": ["#970026","#d6111f","#fa4a29","#fd953f","#fec45f","#ffe895","#ffffcc"],
-};
+// YlOrRd: pale yellow = slowest, deep red = fastest (darkest stop trimmed so it shows on dark)
+const STOPS = ["#ffffcc","#ffe895","#fec45f","#fd953f","#fa4a29","#d6111f","#b10026"];
 const SHAPES = ["circle", "square", "diamond", "triangle"];
 const SYMBOL = { circle:"●", square:"■", diamond:"◆", triangle:"▲" };
 const TRACK = "#454556";
 
-let scaleName = "Plasma", rgbStops = [];
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
-function setScale(name) {
-  scaleName = name;
-  rgbStops = SCALES[name].map(hexToRgb);
-  document.getElementById("bar").style.background = `linear-gradient(to right, ${SCALES[name].join(",")})`;
-  allPanels().forEach(p => p.drawn = -1);  // force trail redraw in new colors
-}
+const rgbStops = STOPS.map(hexToRgb);
+document.getElementById("bar").style.background = `linear-gradient(to right, ${STOPS.join(",")})`;
 function colorFor(s) {
   let f = (s - D.smin) / Math.max(D.smax - D.smin, 1e-9);
   f = Math.min(1, Math.max(0, f)) * (rgbStops.length - 1);
@@ -277,9 +265,6 @@ const speedBox = document.getElementById("speeds");
   speedBox.appendChild(b);
 });
 
-const scaleSel = document.getElementById("scale");
-Object.keys(SCALES).forEach(k => scaleSel.add(new Option(k + " colors", k)));
-scaleSel.onchange = () => { setScale(scaleSel.value); render(); };
 document.getElementById("smin").textContent = Math.round(D.smin) + " km/h";
 document.getElementById("smax").textContent = Math.round(D.smax) + " km/h";
 
@@ -293,7 +278,6 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-function allPanels() { return panels.concat([shared]); }
 let view = D.drivers.length > 1 ? "one" : "separate";
 const viewBox = document.getElementById("views");
 function setView(v) {
@@ -313,7 +297,6 @@ if (D.drivers.length > 1) {
   });
 } else viewBox.hidden = true;
 
-setScale("Plasma");
 window.addEventListener("resize", () => setView(view));
 setView(view);
 requestAnimationFrame(loop);
