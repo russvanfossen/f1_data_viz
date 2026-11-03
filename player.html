@@ -3,35 +3,31 @@
 <head>
 <meta charset="utf-8">
 <style>
-  :root { --bg:#15151e; --panel:#1d1d28; --text:#f2f2f2; --muted:#b8b8c4; --line:#8a8a99; }
+  :root { --bg:#15151e; --text:#f2f2f2; --muted:#b8b8c4; --line:#8a8a99; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text);
-         font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  .controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; }
+  html, body { margin:0; height:100%; }
+  body { background:var(--bg); color:var(--text); display:flex; flex-direction:column; overflow:hidden;
+         font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; border-radius:8px; }
+  .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; padding:10px 12px 6px; }
   button { background:#262633; color:var(--text); border:1px solid var(--line);
-         border-radius:6px; padding:7px 14px; font-size:15px; cursor:pointer; font-family:inherit; }
+           border-radius:6px; padding:6px 13px; font-size:15px; cursor:pointer; font-family:inherit; }
   button:hover { border-color:var(--text); }
   button:focus-visible, input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
   button[aria-pressed="true"] { background:var(--text); color:#111; border-color:var(--text); font-weight:600; }
   #play { min-width:92px; font-weight:600; }
   .group { display:flex; gap:4px; align-items:center; }
-  .group span { color:var(--muted); font-size:14px; margin-right:4px; }
-  #scrub { flex:1; min-width:180px; accent-color:var(--text); }
-  #clock { font-family:ui-monospace, Menlo, Consolas, monospace; font-size:15px; min-width:120px; text-align:right; }
-  .legend { display:flex; align-items:center; gap:8px; padding:0 12px 10px; font-size:14px; color:var(--muted); }
-  #bar { width:220px; height:12px; border-radius:3px; border:1px solid var(--line); }
-  .grid { display:grid; gap:10px; padding:0 12px 12px; }
-  .panel { background:var(--panel); border-radius:8px; padding:10px 12px; }
-  .head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
-  .name { font-size:17px; font-weight:600; }
-  .meta { color:var(--muted); font-size:14px; }
-  .readout { font-family:ui-monospace, Menlo, Consolas, monospace; font-size:24px; font-weight:700; white-space:nowrap; }
-  canvas { width:100%; display:block; margin-top:6px; }
-  .chips { display:flex; flex-wrap:wrap; gap:8px 18px; }
-  .chip { font-size:16px; white-space:nowrap; }
-  .chip b { font-family:ui-monospace, Menlo, Consolas, monospace; font-size:18px; }
-  .chip .pos { display:inline-block; min-width:30px; color:var(--muted); font-weight:600; }
-  [hidden] { display:none !important; }
+  .label { color:var(--muted); font-size:14px; margin-right:4px; }
+  #scrub { flex:1; min-width:160px; accent-color:var(--text); }
+  #clock { font-family:ui-monospace, Menlo, Consolas, monospace; font-size:15px; min-width:118px; text-align:right; }
+  .info { display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px; padding:4px 12px 6px; }
+  .legend { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--muted); }
+  #bar { width:160px; height:10px; border-radius:3px; border:1px solid var(--line); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px 18px; }
+  .chip { font-size:15px; white-space:nowrap; }
+  .chip b { font-family:ui-monospace, Menlo, Consolas, monospace; font-size:16px; }
+  .chip .pos { display:inline-block; min-width:28px; color:var(--muted); font-weight:600; }
+  .stage { flex:1; min-height:0; position:relative; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
 </style>
 </head>
 <body>
@@ -40,25 +36,39 @@
   <button id="restart">↺ Restart</button>
   <input id="scrub" type="range" min="0" step="0.01" value="0" aria-label="Lap time">
   <span id="clock"></span>
-  <div class="group" id="views"><span>View</span></div>
-  <div class="group" id="speeds"><span>Speed</span></div>
+  <div class="group" id="speeds"><span class="label">Speed</span></div>
 </div>
-<div class="legend"><span>Speed</span><span id="smin"></span><div id="bar"></div><span id="smax"></span></div>
-<div class="grid" id="grid"></div>
-<div class="grid" id="together"><div class="panel"><div class="chips" id="chips"></div><canvas></canvas></div></div>
+<div class="info">
+  <div class="legend"><span>Slow</span><div id="bar"></div><span>Fast</span><span id="range"></span></div>
+  <div class="chips" id="chips"></div>
+</div>
+<div class="stage"><canvas id="map"></canvas></div>
 
 <script>
 const D = __DATA__;
 
+// Fit the player to the visible window: grow/shrink this iframe so the map ends at the bottom of the screen.
+(function fitToWindow() {
+  try {
+    const frame = window.frameElement, host = window.parent;
+    if (!frame || !host) return;
+    const fit = () => {
+      const top = frame.getBoundingClientRect().top + host.scrollY;
+      const h = Math.max(D.minH, Math.min(D.maxH, host.innerHeight - Math.max(top - host.scrollY, 0) - 16));
+      frame.style.height = h + "px";
+      frame.height = h;
+    };
+    fit();
+    host.addEventListener("resize", fit);
+  } catch (e) { /* cross-origin or no parent: keep the fixed height Streamlit gave us */ }
+})();
+
 // YlOrRd: pale yellow = slowest, deep red = fastest (darkest stop trimmed so it shows on dark)
 const STOPS = ["#ffffcc","#ffe895","#fec45f","#fd953f","#fa4a29","#d6111f","#b10026"];
-const SHAPES = ["circle", "square", "diamond", "triangle"];
-const SYMBOL = { circle:"●", square:"■", diamond:"◆", triangle:"▲" };
-const TRACK = "#454556";
-
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
 const rgbStops = STOPS.map(hexToRgb);
 document.getElementById("bar").style.background = `linear-gradient(to right, ${STOPS.join(",")})`;
+document.getElementById("range").textContent = `${Math.round(D.smin)}–${Math.round(D.smax)} km/h`;
 function colorFor(s) {
   let f = (s - D.smin) / Math.max(D.smax - D.smin, 1e-9);
   f = Math.min(1, Math.max(0, f)) * (rgbStops.length - 1);
@@ -67,13 +77,20 @@ function colorFor(s) {
   return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * u)).join(",")})`;
 }
 
-// Shared bounds so every panel uses the same map and ghost cars line up
+const SHAPES = ["circle", "square", "diamond", "triangle"];
+const SYMBOL = { circle:"●", square:"■", diamond:"◆", triangle:"▲" };
+const TRACK = "#454556";
+const TAIL_S = 2.5;  // seconds of speed-colored tail behind each car
+
 let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, T_END = 0;
 D.drivers.forEach((d, n) => {
   d.shape = SHAPES[n % SHAPES.length];
   d.x.forEach(v => { minX = Math.min(minX, v); maxX = Math.max(maxX, v); });
   d.y.forEach(v => { minY = Math.min(minY, v); maxY = Math.max(maxY, v); });
   T_END = Math.max(T_END, d.t[d.t.length - 1]);
+  // distance along the lap, used to rank who's ahead
+  d.dist = [0];
+  for (let i = 1; i < d.x.length; i++) d.dist.push(d.dist[i-1] + Math.hypot(d.x[i] - d.x[i-1], d.y[i] - d.y[i-1]));
 });
 
 function idxAt(d, T) {  // last sample index with t <= T
@@ -98,62 +115,47 @@ function drawShape(ctx, shape, x, y, r) {
   else { ctx.moveTo(x, y - r * 1.3); ctx.lineTo(x + r * 1.2, y + r * 0.9); ctx.lineTo(x - r * 1.2, y + r * 0.9); ctx.closePath(); }
 }
 
-// ---- panels
-const grid = document.getElementById("grid");
-grid.style.gridTemplateColumns = D.drivers.length > 1 ? "1fr 1fr" : "1fr";
-const panels = D.drivers.map(d => {
-  const el = document.createElement("div");
-  el.className = "panel";
-  el.innerHTML = `<div class="head"><div><div class="name">${SYMBOL[d.shape]} ${d.name}</div>
-      <div class="meta">${d.team} · Lap ${d.lap} · ${d.lapTime}</div></div>
-      <div class="readout"></div></div><canvas></canvas>`;
-  grid.appendChild(el);
-  const canvas = el.querySelector("canvas");
-  canvas.style.height = D.canvasH + "px";
-  return { d, h: D.canvasH, el, canvas, ctx: canvas.getContext("2d"), readout: el.querySelector(".readout"),
-           trail: document.createElement("canvas"), drawn: -1 };
-});
+// ---- map
+const canvas = document.getElementById("map"), ctx = canvas.getContext("2d");
+const trackLayer = document.createElement("canvas");
+let dpr = 1, X = v => v, Y = v => v;
 
-// ---- shared map
-const togetherEl = document.getElementById("together");
-const shared = (() => {
-  const canvas = togetherEl.querySelector("canvas");
-  canvas.style.height = D.togetherH + "px";
-  return { h: D.togetherH, canvas, ctx: canvas.getContext("2d"), trail: document.createElement("canvas"), drawn: -1 };
-})();
+function layout() {
+  dpr = window.devicePixelRatio || 1;
+  const W = Math.max(1, canvas.clientWidth * dpr), H = Math.max(1, canvas.clientHeight * dpr), pad = 30 * dpr;
+  canvas.width = trackLayer.width = W; canvas.height = trackLayer.height = H;
+  // one scale for both axes, so the track keeps its real shape, sized to whichever side is tighter
+  const sc = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
+  const ox = (W - (maxX - minX) * sc) / 2, oy = (H - (maxY - minY) * sc) / 2;
+  X = x => ox + (x - minX) * sc;
+  Y = y => H - (oy + (y - minY) * sc);  // flip so north is up
+  const c = trackLayer.getContext("2d"), d = D.drivers[0];
+  c.clearRect(0, 0, W, H);
+  c.lineCap = c.lineJoin = "round"; c.strokeStyle = TRACK; c.lineWidth = 12 * dpr;
+  c.beginPath(); d.x.forEach((x, i) => i ? c.lineTo(X(x), Y(d.y[i])) : c.moveTo(X(x), Y(d.y[i]))); c.stroke();
+}
+
 const chipsEl = document.getElementById("chips");
-const chips = D.drivers.map(d => {
-  const el = document.createElement("span");
-  el.className = "chip";
-  chipsEl.appendChild(el);
-  return el;
-});
-// Distance along the lap, used only to rank who's ahead (all cars share the same coordinates)
-D.drivers.forEach(d => {
-  d.dist = [0];
-  for (let i = 1; i < d.x.length; i++) d.dist.push(d.dist[i-1] + Math.hypot(d.x[i] - d.x[i-1], d.y[i] - d.y[i-1]));
-});
-const TAIL_S = 2.5;  // seconds of speed-colored tail behind each car on the shared map
+const chips = D.drivers.map(() => { const el = document.createElement("span"); el.className = "chip"; chipsEl.appendChild(el); return el; });
 
-function renderShared(states) {
-  const p = shared, ctx = p.ctx, r = p.dpr;
-  if (p.drawn < 0) resetTrail(p);  // track only
-  ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
-  ctx.drawImage(p.trail, 0, 0);
+function render() {
+  const states = D.drivers.map(d => stateAt(d, T)), r = dpr;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(trackLayer, 0, 0);
   ctx.lineCap = "round"; ctx.lineWidth = 6 * r;
-  D.drivers.forEach((d, n) => {
+  D.drivers.forEach((d, n) => {  // tails
     const st = states[n], i0 = idxAt(d, Math.max(0, T - TAIL_S));
     for (let i = i0; i < st.i; i++) {
       ctx.strokeStyle = colorFor((d.s[i] + d.s[i+1]) / 2);
-      ctx.beginPath(); ctx.moveTo(p.X(d.x[i]), p.Y(d.y[i])); ctx.lineTo(p.X(d.x[i+1]), p.Y(d.y[i+1])); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(X(d.x[i]), Y(d.y[i])); ctx.lineTo(X(d.x[i+1]), Y(d.y[i+1])); ctx.stroke();
     }
     if (!st.done) {
       ctx.strokeStyle = colorFor(st.s);
-      ctx.beginPath(); ctx.moveTo(p.X(d.x[st.i]), p.Y(d.y[st.i])); ctx.lineTo(p.X(st.x), p.Y(st.y)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(X(d.x[st.i]), Y(d.y[st.i])); ctx.lineTo(X(st.x), Y(st.y)); ctx.stroke();
     }
   });
   D.drivers.forEach((d, n) => {  // cars on top of every tail
-    const st = states[n], cx = p.X(st.x), cy = p.Y(st.y);
+    const st = states[n], cx = X(st.x), cy = Y(st.y);
     ctx.lineWidth = 3 * r; ctx.strokeStyle = "#000"; ctx.fillStyle = "#fff";
     drawShape(ctx, d.shape, cx, cy, 9 * r); ctx.fill(); ctx.stroke();
     ctx.font = `700 ${14 * r}px sans-serif`; ctx.textBaseline = "middle";
@@ -166,71 +168,12 @@ function renderShared(states) {
     const d = D.drivers[n];
     return st.done ? d.dist[d.dist.length - 1] : d.dist[st.i] + (d.dist[st.i+1] - d.dist[st.i]) * st.u;
   });
-  const order = dist.map((v, n) => n).sort((a, b) => dist[b] - dist[a]);
-  order.forEach((n, k) => {
+  dist.map((v, n) => n).sort((a, b) => dist[b] - dist[a]).forEach((n, k) => {
     const d = D.drivers[n], st = states[n];
-    chips[n].innerHTML = `<span class="pos">P${k + 1}</span>${SYMBOL[d.shape]} ${d.abbr} · Lap ${d.lap} · ` +
+    const pos = D.drivers.length > 1 ? `<span class="pos">P${k + 1}</span>` : "";
+    chips[n].innerHTML = `${pos}${SYMBOL[d.shape]} ${d.abbr} · Lap ${d.lap} · ` +
       `<b>${st.done ? "Finished " + d.lapTime : Math.round(st.s) + " km/h"}</b>`;
-    chipsEl.appendChild(chips[n]);  // reorder chips to match running order
-  });
-}
-
-function layout(p) {
-  const dpr = window.devicePixelRatio || 1;
-  const W = p.canvas.clientWidth * dpr, H = p.h * dpr, pad = 24 * dpr;
-  p.canvas.width = p.trail.width = W; p.canvas.height = p.trail.height = H;
-  const sc = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
-  const ox = (W - (maxX - minX) * sc) / 2, oy = (H - (maxY - minY) * sc) / 2;
-  p.dpr = dpr;
-  p.X = x => ox + (x - minX) * sc;
-  p.Y = y => H - (oy + (y - minY) * sc);  // flip so north is up
-  p.drawn = -1;
-}
-
-function resetTrail(p) {
-  const c = p.trail.getContext("2d"), d = p.d || D.drivers[0];
-  c.clearRect(0, 0, p.trail.width, p.trail.height);
-  c.lineCap = c.lineJoin = "round";
-  c.strokeStyle = TRACK; c.lineWidth = 12 * p.dpr;
-  c.beginPath(); d.x.forEach((x, i) => i ? c.lineTo(p.X(x), p.Y(d.y[i])) : c.moveTo(p.X(x), p.Y(d.y[i]))); c.stroke();
-  p.drawn = 0;
-}
-function extendTrail(p, upto) {  // draw only the new segments since last frame
-  if (upto < p.drawn || p.drawn < 0) resetTrail(p);
-  const c = p.trail.getContext("2d"), d = p.d;
-  c.lineWidth = 5 * p.dpr; c.lineCap = "round";
-  for (let i = p.drawn; i < upto; i++) {
-    c.strokeStyle = colorFor((d.s[i] + d.s[i + 1]) / 2);
-    c.beginPath(); c.moveTo(p.X(d.x[i]), p.Y(d.y[i])); c.lineTo(p.X(d.x[i+1]), p.Y(d.y[i+1])); c.stroke();
-  }
-  p.drawn = upto;
-}
-
-function render() {
-  const states = panels.map(p => stateAt(p.d, T));
-  if (view === "one") renderShared(states);
-  else panels.forEach((p, n) => {
-    const st = states[n], ctx = p.ctx, r = p.dpr;
-    extendTrail(p, st.i);
-    ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
-    ctx.drawImage(p.trail, 0, 0);
-    if (!st.done) {  // partial segment up to the car
-      ctx.lineCap = "round"; ctx.lineWidth = 5 * r; ctx.strokeStyle = colorFor(st.s);
-      ctx.beginPath(); ctx.moveTo(p.X(p.d.x[st.i]), p.Y(p.d.y[st.i])); ctx.lineTo(p.X(st.x), p.Y(st.y)); ctx.stroke();
-    }
-    // other drivers as small hollow shapes with their abbreviation
-    panels.forEach((q, m) => {
-      if (m === n) return;
-      const s2 = states[m], gx = p.X(s2.x), gy = p.Y(s2.y);
-      ctx.lineWidth = 2 * r; ctx.strokeStyle = "#f2f2f2"; ctx.fillStyle = "rgba(21,21,30,0.85)";
-      drawShape(ctx, q.d.shape, gx, gy, 6 * r); ctx.fill(); ctx.stroke();
-      ctx.font = `600 ${12 * r}px sans-serif`; ctx.fillStyle = "#f2f2f2"; ctx.textBaseline = "middle";
-      ctx.fillText(q.d.abbr, gx + 10 * r, gy);
-    });
-    // this driver's car: big white shape, black outline
-    ctx.lineWidth = 3 * r; ctx.strokeStyle = "#000"; ctx.fillStyle = "#fff";
-    drawShape(ctx, p.d.shape, p.X(st.x), p.Y(st.y), 9 * r); ctx.fill(); ctx.stroke();
-    p.readout.textContent = st.done ? `Finished ${p.d.lapTime}` : `${Math.round(st.s)} km/h`;
+    chipsEl.appendChild(chips[n]);  // reorder to match running order
   });
   scrub.value = T;
   clock.textContent = `${T.toFixed(1)} / ${T_END.toFixed(1)} s`;
@@ -265,9 +208,6 @@ const speedBox = document.getElementById("speeds");
   speedBox.appendChild(b);
 });
 
-document.getElementById("smin").textContent = Math.round(D.smin) + " km/h";
-document.getElementById("smax").textContent = Math.round(D.smax) + " km/h";
-
 function loop(ts) {
   if (playing) {
     if (lastTs !== null) T += (ts - lastTs) / 1000 * rate;
@@ -278,27 +218,10 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-let view = D.drivers.length > 1 ? "one" : "separate";
-const viewBox = document.getElementById("views");
-function setView(v) {
-  view = v;
-  grid.hidden = v !== "separate";
-  togetherEl.hidden = v !== "one";
-  viewBox.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
-  (v === "one" ? [shared] : panels).forEach(layout);  // size only what's visible
-  render();
-}
-if (D.drivers.length > 1) {
-  [["separate", "Separate maps"], ["one", "One map"]].forEach(([v, label]) => {
-    const b = document.createElement("button");
-    b.textContent = label; b.dataset.v = v;
-    b.onclick = () => setView(v);
-    viewBox.appendChild(b);
-  });
-} else viewBox.hidden = true;
-
-window.addEventListener("resize", () => setView(view));
-setView(view);
+// re-layout whenever the map area changes size (window resize, iframe resized to fit)
+new ResizeObserver(() => { layout(); render(); }).observe(canvas);
+layout();
+render();
 requestAnimationFrame(loop);
 </script>
 </body>
