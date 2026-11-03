@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin:0; background:#15151e; color:#f2f2f2;
+         font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:28px;
+          padding:28px 24px; min-height:380px; box-sizing:border-box; }
+  svg { width:min(560px, 100%); height:auto; }
+  .side { max-width:330px; }
+  h2 { margin:0 0 6px; font-size:24px; }
+  .next { color:#d4d4dc; font-size:16px; margin:0 0 18px; line-height:1.4; }
+  ol { list-style:none; padding:0; margin:0; font-size:17px; }
+  li { margin:9px 0; }
+  .mark { display:inline-block; width:1.7em; font-weight:700; }
+  .pending { color:#9a9aa8; }
+  .active { font-weight:700; }
+  .track-outline { fill:none; stroke:#3a3a4a; stroke-width:30; stroke-linejoin:round; }
+  .track-surface { fill:none; stroke:#2a2a37; stroke-width:22; stroke-linejoin:round; }
+  .track-line { fill:none; stroke:url(#speed); stroke-width:5; stroke-linejoin:round; stroke-linecap:round;
+                stroke-dasharray:1400; stroke-dashoffset:1400; animation:draw 6s ease-in-out infinite; }
+  @keyframes draw { 0% { stroke-dashoffset:1400; } 60%, 100% { stroke-dashoffset:0; } }
+  .static-car { display:none; }
+  @media (prefers-reduced-motion: reduce) {
+    .track-line { animation:none; stroke-dashoffset:0; }
+    .moving-car { display:none; }
+    .static-car { display:inline; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <svg viewBox="0 0 600 340" role="img" aria-label="A race car lapping an empty circuit">
+    <defs>
+      <!-- same yellow → red scale the maps use -->
+      <linearGradient id="speed" x1="0" x2="1">
+        <stop offset="0" stop-color="#ffffcc"/><stop offset=".35" stop-color="#fec45f"/>
+        <stop offset=".65" stop-color="#fa4a29"/><stop offset="1" stop-color="#b10026"/>
+      </linearGradient>
+      <pattern id="checker" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#f2f2f2"/><rect width="4" height="4" fill="#111"/><rect x="4" y="4" width="4" height="4" fill="#111"/>
+      </pattern>
+      <!-- invented circuit (not a real track) -->
+      <path id="circuit" d="M110 270 L430 270 Q500 270 515 215 L530 150 Q540 105 500 92
+             L420 70 Q385 62 372 95 L355 140 Q345 165 315 160 L235 148 Q200 142 197 110
+             L195 78 Q192 48 160 52 L105 60 Q70 66 68 105 L70 225 Q72 270 110 270 Z"/>
+      <!-- simple generic open-wheel car, pointing right -->
+      <g id="car">
+        <rect x="-22" y="-9" width="6" height="18" rx="1.5" fill="#f2f2f2"/>
+        <rect x="16" y="-8" width="5" height="16" rx="1.5" fill="#f2f2f2"/>
+        <rect x="-10" y="-11" width="7" height="5" rx="1.5" fill="#111"/>
+        <rect x="-10" y="6" width="7" height="5" rx="1.5" fill="#111"/>
+        <rect x="9" y="-10" width="6" height="4" rx="1.5" fill="#111"/>
+        <rect x="9" y="6" width="6" height="4" rx="1.5" fill="#111"/>
+        <path d="M-17 -4 L6 -4 L18 -1.5 L18 1.5 L6 4 L-17 4 Z" fill="#fa4a29" stroke="#111" stroke-width="1.2"/>
+        <circle cx="-4" cy="0" r="2.6" fill="#111"/>
+      </g>
+    </defs>
+
+    <use href="#circuit" class="track-outline"/>
+    <use href="#circuit" class="track-surface"/>
+    <use href="#circuit" class="track-line"/>
+
+    <!-- start/finish line -->
+    <rect x="236" y="256" width="10" height="28" fill="url(#checker)"/>
+
+    <g class="moving-car">
+      <use href="#car">
+        <animateMotion dur="6s" repeatCount="indefinite" rotate="auto" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+          <mpath href="#circuit"/>
+        </animateMotion>
+      </use>
+    </g>
+    <use href="#car" class="static-car" transform="translate(320 270)"/>
+  </svg>
+
+  <div class="side">
+    <h2>__TITLE__</h2>
+    <p class="next">__NEXT__</p>
+    <ol>__STEPS__</ol>
+  </div>
+</div>
+</body>
+</html>
