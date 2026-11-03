@@ -2,7 +2,6 @@
 
 import html
 import json
-import math
 import threading
 import time
 from collections import deque
@@ -20,10 +19,13 @@ API = "https://api.openf1.org/v1"
 PLAYER = (Path(__file__).parent / "player.html").read_text()
 PLACEHOLDER = (Path(__file__).parent / "placeholder.html").read_text()
 MAX_DRIVERS = 4
+PLAYER_MIN_H, PLAYER_START_H, PLAYER_MAX_H = 420, 620, 1100
 CACHE_TTL = 6 * 3600          # seconds; historical data doesn't change
 CHUNK = pd.Timedelta(minutes=20)  # fallback window when a full-session request is too big
 
 st.set_page_config(page_title="F1 Lap Speed Map", page_icon="🏎️", layout="wide")
+# Trim Streamlit's large top padding so more of the screen goes to the map
+st.markdown("<style>.block-container{padding-top:2.2rem;padding-bottom:1rem}</style>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------- polite API access
@@ -318,15 +320,10 @@ def player_html(entries: list[dict]) -> tuple[str, int]:
             "s": tr["speed"].astype(float).round(1).tolist(),
         })
     speeds = pd.concat([e["trace"]["speed"] for e in entries])
-    n = len(entries)
-    canvas_h = 560 if n == 1 else 400
-    rows = 1 if n == 1 else math.ceil(n / 2)
-    height = 120 + rows * (canvas_h + 90)  # separate maps
-    if n > 1:
-        height = max(height, 860)  # room for a big shared map too
-    together_h = height - 230  # shared map fills the same space
+    # The player resizes itself to the visible window, within these limits (px)
     data = {"drivers": drivers, "smin": float(speeds.min()), "smax": float(speeds.max()),
-            "canvasH": canvas_h, "togetherH": together_h}
+            "minH": PLAYER_MIN_H, "maxH": PLAYER_MAX_H}
+    height = PLAYER_START_H
     return PLAYER.replace("__DATA__", json.dumps(data)), height
 
 
@@ -457,7 +454,11 @@ with api_errors():
 if not entries:
     st.stop()
 
-st.subheader(f"{session['circuit_short_name']} — {session['session_name']}")
+st.markdown(f"**{session['circuit_short_name']} — {session['session_name']}** · "
+            "all cars run on the same lap clock, each with a short speed-colored tail.")
+page, height = player_html(entries)
+components.html(page, height=height)
+
 st.dataframe(
     pd.DataFrame([{
         "Driver": e["name"], "Lap": int(e["lap"]), "Lap time": fmt_laptime(e["lap_duration"]),
@@ -466,8 +467,3 @@ st.dataframe(
     } for e in entries]),
     hide_index=True,
 )
-
-page, height = player_html(entries)
-components.html(page, height=height)
-st.caption("All cars run on the same lap clock. **One map** shows every car together with a short "
-           "speed-colored tail and the running order; **Separate maps** shows each driver's full speed trace.")
