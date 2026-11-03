@@ -18,6 +18,7 @@ import streamlit.components.v1 as components
 
 API = "https://api.openf1.org/v1"
 PLAYER = (Path(__file__).parent / "player.html").read_text()
+PLACEHOLDER = (Path(__file__).parent / "placeholder.html").read_text()
 MAX_DRIVERS = 4
 CACHE_TTL = 6 * 3600          # seconds; historical data doesn't change
 CHUNK = pd.Timedelta(minutes=20)  # fallback window when a full-session request is too big
@@ -221,6 +222,29 @@ class Loader:
         self.slot.empty()
 
 
+STEPS = ["Pick a date range", "Choose a session", "Choose drivers", "Choose a lap"]
+HINTS = [
+    "Use the date range in the sidebar to find F1 sessions.",
+    "Pick a session from the sidebar. Its lap times load right away.",
+    "Add up to 4 drivers to compare. Their position and speed data loads only when you pick them.",
+    "Choose how to compare, then a lap, and the animated map appears here.",
+]
+
+
+def show_placeholder(step: int):
+    """Fill the map's spot with the circuit graphic and a checklist of what's left, then stop the run."""
+    items = "".join(
+        f'<li class="{"done" if i < step else "active" if i == step else "pending"}">'
+        f'<span class="mark">{MARKS["done" if i < step else "active" if i == step else "pending"]}</span>{label}</li>'
+        for i, label in enumerate(STEPS)
+    )
+    page = (PLACEHOLDER.replace("__TITLE__", "Ready when you are")
+            .replace("__NEXT__", HINTS[step]).replace("__STEPS__", items))
+    with loader.slot.container():
+        components.html(page, height=420)
+    st.stop()
+
+
 def seen() -> set:
     return st.session_state.setdefault("seen", set())
 
@@ -322,10 +346,10 @@ def short(n: int) -> str:
 with st.sidebar:
     st.header("1. Timeline")
     today = date.today()
-    picked = st.date_input("Date range", value=(today - timedelta(days=30), today))
+    picked = st.date_input("Date range", value=(), max_value=today, format="YYYY-MM-DD",
+                           help="Pick a start date, then an end date.")
     if not isinstance(picked, tuple) or len(picked) != 2:
-        st.info("Pick an end date.")
-        st.stop()
+        show_placeholder(0)
     d_start, d_end = picked
 
     with api_errors():
@@ -342,19 +366,20 @@ with st.sidebar:
     sessions = sessions.sort_values("date_start", ascending=False)
 
     types = sorted(sessions["session_type"].dropna().unique())
-    default_types = ["Race"] if "Race" in types else types
-    chosen_types = st.multiselect("Session types", types, default=default_types)
-    sessions = sessions[sessions["session_type"].isin(chosen_types)]
-    if sessions.empty:
-        st.warning("No sessions of those types.")
-        st.stop()
+    chosen_types = st.multiselect("Session types", types, default=[], placeholder="All session types")
+    if chosen_types:  # empty means show every type
+        sessions = sessions[sessions["session_type"].isin(chosen_types)]
 
     st.header("2. Session")
     labels = {
         r.session_key: f"{r.date_start:%b %d} · {r.circuit_short_name} ({r.country_name}) — {r.session_name}"
         for r in sessions.itertuples()
     }
-    session_key = int(st.selectbox("Session", list(labels), format_func=labels.get))
+    session_key = st.selectbox("Session", list(labels), format_func=labels.get, index=None,
+                               placeholder="Choose a session")
+    if session_key is None:
+        show_placeholder(1)
+    session_key = int(session_key)
     session = sessions.set_index("session_key").loc[session_key]
 
     with api_errors():
@@ -368,7 +393,7 @@ with st.sidebar:
     dlabels = {n: f"#{n} {r.full_name} ({r.team_name})" for n, r in info.iterrows() if n in have_laps}
     chosen = st.multiselect(f"Drivers (up to {MAX_DRIVERS})", list(dlabels), default=[],
                             format_func=dlabels.get, max_selections=MAX_DRIVERS,
-                           placeholder="Choose drivers to compare")
+                            placeholder="Choose drivers to compare")
 
     not_loaded = [n for n in dlabels if ("driver", session_key, n) not in seen()]
     if not_loaded:
@@ -385,18 +410,22 @@ with st.sidebar:
         st.session_state["toast"] = f"All {len(not_loaded)} drivers loaded — every lap opens instantly now."
         st.rerun()
     if not chosen:
-        st.info("Pick at least one driver.")
-        st.stop()
+        show_placeholder(2)
 
     st.header("4. Lap")
-    mode = st.radio("Compare", ["Same lap number", "Each driver's fastest lap"])
+    mode = st.radio("Compare", ["Same lap number", "Each driver's fastest lap"], index=None)
+    if mode is None:
+        show_placeholder(3)
     dlaps = {n: laps[laps["driver_number"] == n] for n in chosen}
     if mode == "Same lap number":
         common = sorted(set.intersection(*(set(l["lap_number"]) for l in dlaps.values())))
         if not common:
             st.warning("These drivers have no lap numbers in common.")
             st.stop()
-        lap_number = st.selectbox("Lap", common, format_func=lambda n: f"Lap {n}")
+        lap_number = st.selectbox("Lap", common, format_func=lambda n: f"Lap {n}", index=None,
+                                  placeholder="Choose a lap")
+        if lap_number is None:
+            show_placeholder(3)
         picks = {n: l.set_index("lap_number").loc[lap_number] for n, l in dlaps.items()}
     else:
         picks = {}
