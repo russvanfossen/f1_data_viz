@@ -25,29 +25,13 @@ Pick a date range, a session, a driver and a lap. The app draws the car moving a
 
 API responses are cached for an hour, so switching between selections you've already viewed doesn't call the API again.
 
-## Run locally
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-Then open the URL Streamlit prints (usually http://localhost:8501).
-
-## Deploy to Streamlit Community Cloud
-
-1. Push `app.py`, `requirements.txt` and this README to a GitHub repo.
-2. Go to [share.streamlit.io](https://share.streamlit.io) and click **Create app**.
-3. Select the repo and branch, set the main file to `app.py`, and click **Deploy**.
-
-No API key or secrets are needed.
-
 ## Notes and limitations
 
 - OpenF1 has a rate limit. If you see a rate-limit message, wait a few seconds and try again.
 - Data for very recent or in-progress sessions may be incomplete.
 - The last lap of a session is skipped if OpenF1 has no lap duration for it, because there's no end time to request data up to.
 - Position coordinates come straight from OpenF1 and have no units shown; the track shape is correct but not drawn to a real-world scale.
+- API will not query during live F1 events
 
 ## Files
 
